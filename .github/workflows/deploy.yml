@@ -1,0 +1,75 @@
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches:
+      - main
+
+jobs:
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Run tests
+        run: ./gradlew clean test
+
+  build-and-deploy:
+    name: Build, Push and Deploy
+    runs-on: ubuntu-latest
+    needs: test
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: '17'
+          distribution: 'temurin'
+
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+
+      - name: Build project
+        run: ./gradlew clean build
+
+      - name: Log in to registry
+        run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_SERVER }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
+
+      - name: Build Docker image
+        run: docker build -t ${{ secrets.REGISTRY_SERVER }}/purchase-api/purchase-api:${{ github.sha }} .
+
+      - name: Push Docker image
+        run: docker push ${{ secrets.REGISTRY_SERVER }}/purchase-api/purchase-api:${{ github.sha }}
+
+      - name: Set up kubectl
+        uses: azure/setup-kubectl@v4
+
+      - name: Configure kubeconfig
+        run: |
+          mkdir -p $HOME/.kube
+          echo "${{ secrets.KUBECONFIG_B64 }}" | base64 --decode > $HOME/.kube/config
+
+      - name: Replace image placeholder in manifest
+        run: |
+          sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.REGISTRY_SERVER }}/purchase-api/purchase-api:${{ github.sha }}|g" k3s/app-purchase-transaction.yml
+
+      - name: Deploy to Kubernetes
+        run: kubectl apply -f k3s/app-purchase-transaction.yml
+
+      - name: Wait for rollout
+        run: kubectl rollout status deployment/purchase-api --timeout=120s
