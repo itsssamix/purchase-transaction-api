@@ -51,10 +51,10 @@ jobs:
         run: echo "${{ secrets.REGISTRY_PASSWORD }}" | docker login ${{ secrets.REGISTRY_SERVER }} -u ${{ secrets.REGISTRY_USER }} --password-stdin
 
       - name: Build Docker image
-        run: docker build -t ${{ secrets.REGISTRY_SERVER }}/purchase-api/purchase-api:${{ github.sha }} .
+        run: docker build -t ${{ secrets.REGISTRY_SERVER }}/purchase-api-registry/purchase-api:${{ github.sha }} .
 
       - name: Push Docker image
-        run: docker push ${{ secrets.REGISTRY_SERVER }}/purchase-api/purchase-api:${{ github.sha }}
+        run: docker push ${{ secrets.REGISTRY_SERVER }}/purchase-api-registry/purchase-api:${{ github.sha }}
 
       - name: Set up kubectl
         uses: azure/setup-kubectl@v4
@@ -66,7 +66,7 @@ jobs:
 
       - name: Replace image placeholder in manifest
         run: |
-          sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.REGISTRY_SERVER }}/purchase-api/purchase-api:${{ github.sha }}|g" k3s/app-purchase-transaction.yml
+          sed -i "s|DOCKER_IMAGE_PLACEHOLDER|${{ secrets.REGISTRY_SERVER }}/purchase-api-registry/purchase-api:${{ github.sha }}|g" k3s/app-purchase-transaction.yml
 
       - name: Deploy to Kubernetes
         run: kubectl apply -f k3s/app-purchase-transaction.yml
